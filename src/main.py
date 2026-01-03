@@ -5,12 +5,14 @@ import sys
 from typing import Optional
 
 from src import __version__
+from src.services.persistence import JsonPersistence
 from src.services.todo_service import TodoService
 from src.ui.console import ConsoleUI
 
 
-# Global service instance (in-memory storage)
-todo_service = TodoService()
+# Global service instance with file persistence
+persistence = JsonPersistence()  # ~/.todo_cli/tasks.json
+todo_service = TodoService(persistence=persistence)
 ui = ConsoleUI()
 
 

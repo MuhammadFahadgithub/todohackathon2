@@ -1,21 +1,39 @@
 """Todo service for managing tasks."""
 
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from src.models.task import Task, TaskStatus, TaskPriority
+
+if TYPE_CHECKING:
+    from src.services.persistence import JsonPersistence
 
 
 class TodoService:
     """Service for CRUD operations on tasks.
 
     Maintains an in-memory storage of tasks with auto-incrementing IDs.
+    Optionally persists to file when persistence layer is provided.
     """
 
-    def __init__(self):
-        """Initialize the todo service with empty storage."""
+    def __init__(self, persistence: Optional["JsonPersistence"] = None):
+        """Initialize the todo service.
+
+        Args:
+            persistence: Optional persistence layer for file storage
+        """
+        self._persistence = persistence
         self._tasks: Dict[int, Task] = {}
         self._next_id: int = 1
+
+        # Load from persistence if available
+        if self._persistence:
+            self._tasks, self._next_id = self._persistence.load()
+
+    def _persist(self) -> None:
+        """Save current state to persistence layer if available."""
+        if self._persistence:
+            self._persistence.save(self._tasks, self._next_id)
 
     def add_task(
         self,
@@ -59,6 +77,7 @@ class TodoService:
 
         self._tasks[self._next_id] = task
         self._next_id += 1
+        self._persist()
 
         return task, None
 
@@ -117,6 +136,7 @@ class TodoService:
 
         was_already_completed = task.status == TaskStatus.COMPLETED
         task.status = TaskStatus.COMPLETED
+        self._persist()
 
         return task, was_already_completed, None
 
@@ -170,6 +190,9 @@ class TodoService:
             except ValueError:
                 return None, {}, f"Invalid priority '{priority}'. Must be: low, medium, high"
 
+        if changes:
+            self._persist()
+
         return task, changes, None
 
     def delete_task(self, task_id: int) -> Tuple[Optional[Task], Optional[str]]:
@@ -186,4 +209,5 @@ class TodoService:
             return None, f"Task not found (ID: {task_id})"
 
         del self._tasks[task_id]
+        self._persist()
         return task, None

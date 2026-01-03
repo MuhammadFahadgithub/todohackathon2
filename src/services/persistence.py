@@ -45,12 +45,17 @@ class JsonPersistence:
 
             tasks = {}
             for task_data in data.get("tasks", []):
+                due_date = None
+                if task_data.get("due_date"):
+                    due_date = datetime.fromisoformat(task_data["due_date"])
+
                 task = Task(
                     id=task_data["id"],
                     title=task_data["title"],
                     status=TaskStatus(task_data["status"]),
                     priority=TaskPriority(task_data["priority"]),
-                    created_at=datetime.fromisoformat(task_data["created_at"])
+                    created_at=datetime.fromisoformat(task_data["created_at"]),
+                    due_date=due_date
                 )
                 tasks[task.id] = task
 
@@ -78,13 +83,15 @@ class JsonPersistence:
             # Serialize tasks
             tasks_data = []
             for task in sorted(tasks.values(), key=lambda t: t.id):
-                tasks_data.append({
+                task_dict = {
                     "id": task.id,
                     "title": task.title,
                     "status": task.status.value,
                     "priority": task.priority.value,
-                    "created_at": task.created_at.isoformat()
-                })
+                    "created_at": task.created_at.isoformat(),
+                    "due_date": task.due_date.isoformat() if task.due_date else None
+                }
+                tasks_data.append(task_dict)
 
             data = {
                 "version": self.VERSION,

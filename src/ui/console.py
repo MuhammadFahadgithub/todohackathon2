@@ -1,9 +1,10 @@
 """Console UI for Todo CLI Core."""
 
 import sys
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
-from src.models.task import Task
+from src.models.task import Task, TaskStatus
 
 
 class ConsoleUI:
@@ -13,7 +14,35 @@ class ConsoleUI:
     ID_WIDTH = 4
     STATUS_WIDTH = 10
     PRIORITY_WIDTH = 9
-    TITLE_WIDTH = 50
+    DUE_WIDTH = 12
+    TITLE_WIDTH = 40
+
+    @staticmethod
+    def format_due_date(task: Task) -> str:
+        """Format the due date with overdue indicator.
+
+        Args:
+            task: The task to format due date for
+
+        Returns:
+            Formatted due date string
+        """
+        if not task.due_date:
+            return "-"
+
+        now = datetime.now()
+        is_overdue = task.due_date < now and task.status == TaskStatus.PENDING
+
+        # Format date
+        if task.due_date.year == now.year:
+            date_str = task.due_date.strftime("%b %d")
+        else:
+            date_str = task.due_date.strftime("%b %d, %Y")
+
+        if is_overdue:
+            return f"OVERDUE"
+
+        return date_str
 
     @staticmethod
     def format_task_created(task: Task) -> str:
@@ -25,10 +54,13 @@ class ConsoleUI:
         Returns:
             Formatted success message
         """
-        return (
-            f"Created task: {task.title} (ID: {task.id})\n"
+        lines = [
+            f"Created task: {task.title} (ID: {task.id})",
             f"Priority: {task.priority.value}"
-        )
+        ]
+        if task.due_date:
+            lines.append(f"Due: {task.due_date.strftime('%Y-%m-%d')}")
+        return "\n".join(lines)
 
     @staticmethod
     def format_task_list(tasks: List[Task]) -> str:
@@ -45,12 +77,14 @@ class ConsoleUI:
             f"{'ID':<{ConsoleUI.ID_WIDTH}}  "
             f"{'Status':<{ConsoleUI.STATUS_WIDTH}}  "
             f"{'Priority':<{ConsoleUI.PRIORITY_WIDTH}}  "
+            f"{'Due':<{ConsoleUI.DUE_WIDTH}}  "
             f"{'Title':<{ConsoleUI.TITLE_WIDTH}}"
         )
         separator = (
             f"{'-' * ConsoleUI.ID_WIDTH}  "
             f"{'-' * ConsoleUI.STATUS_WIDTH}  "
             f"{'-' * ConsoleUI.PRIORITY_WIDTH}  "
+            f"{'-' * ConsoleUI.DUE_WIDTH}  "
             f"{'-' * ConsoleUI.TITLE_WIDTH}"
         )
 
@@ -62,10 +96,13 @@ class ConsoleUI:
             if len(title) > ConsoleUI.TITLE_WIDTH:
                 title = title[:ConsoleUI.TITLE_WIDTH - 3] + "..."
 
+            due_str = ConsoleUI.format_due_date(task)
+
             line = (
                 f"{task.id:<{ConsoleUI.ID_WIDTH}}  "
                 f"{task.status.value:<{ConsoleUI.STATUS_WIDTH}}  "
                 f"{task.priority.value:<{ConsoleUI.PRIORITY_WIDTH}}  "
+                f"{due_str:<{ConsoleUI.DUE_WIDTH}}  "
                 f"{title:<{ConsoleUI.TITLE_WIDTH}}"
             )
             lines.append(line)
@@ -73,8 +110,13 @@ class ConsoleUI:
         # Summary
         pending = sum(1 for t in tasks if t.status.value == "pending")
         completed = len(tasks) - pending
+        now = datetime.now()
+        overdue = sum(1 for t in tasks if t.due_date and t.due_date < now and t.status == TaskStatus.PENDING)
         lines.append("")
-        lines.append(f"Total: {len(tasks)} tasks ({pending} pending, {completed} completed)")
+        summary = f"Total: {len(tasks)} tasks ({pending} pending, {completed} completed)"
+        if overdue > 0:
+            summary += f", {overdue} overdue"
+        lines.append(summary)
 
         return "\n".join(lines)
 

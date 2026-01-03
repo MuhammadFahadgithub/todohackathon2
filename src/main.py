@@ -215,6 +215,10 @@ def create_parser() -> argparse.ArgumentParser:
         choices=["low", "medium", "high"],
         help="New task priority"
     )
+    update_parser.add_argument(
+        "--due", "-d",
+        help="New due date (e.g., 'tomorrow', 'Jan 15', '2026-01-15', or 'none' to clear)"
+    )
     update_parser.set_defaults(func=cmd_update)
 
     # Delete command

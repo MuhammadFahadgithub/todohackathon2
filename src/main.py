@@ -40,7 +40,7 @@ def cmd_add(args: argparse.Namespace) -> int:
     Returns:
         Exit code (0 for success, 1 for error)
     """
-    task, error = todo_service.add_task(args.title, args.priority)
+    task, error = todo_service.add_task(args.title, args.priority, args.due)
 
     if error:
         ui.print_error(ui.format_error(error))
@@ -115,7 +115,8 @@ def cmd_update(args: argparse.Namespace) -> int:
     task, changes, error = todo_service.update_task(
         task_id,
         title=args.title,
-        priority=args.priority
+        priority=args.priority,
+        due_date=args.due
     )
 
     if error:
@@ -180,6 +181,10 @@ def create_parser() -> argparse.ArgumentParser:
         choices=["low", "medium", "high"],
         default="medium",
         help="Task priority (default: medium)"
+    )
+    add_parser.add_argument(
+        "--due", "-d",
+        help="Due date (e.g., 'tomorrow', 'next friday', '2026-01-15')"
     )
     add_parser.set_defaults(func=cmd_add)
 

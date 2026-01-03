@@ -29,12 +29,14 @@ class Task:
         status: Current status (pending/completed)
         priority: Priority level (low/medium/high)
         created_at: Timestamp when task was created
+        due_date: Optional due date for the task
     """
     id: int
     title: str
     status: TaskStatus = TaskStatus.PENDING
     priority: TaskPriority = TaskPriority.MEDIUM
     created_at: datetime = field(default_factory=datetime.now)
+    due_date: Optional[datetime] = None
 
     def __post_init__(self):
         """Validate task after initialization."""

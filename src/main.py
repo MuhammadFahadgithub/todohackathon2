@@ -1,5 +1,5 @@
-"""CLI entry point for Todo CLI Core."""
-
+"""CLI entry point for Todo CLI Core."""  
+# python -m src.main
 import argparse
 import sys
 from typing import Optional

@@ -1,34 +1,72 @@
-"""Console UI for Todo CLI Core."""
+"""Console UI for Todo CLI Core with Rich formatting."""
 
 import sys
+import io
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
-from src.models.task import Task, TaskStatus
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.text import Text
+
+from src.models.task import Task, TaskStatus, TaskPriority
+
+# Fix Windows console encoding for unicode characters
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 
 class ConsoleUI:
-    """Handles console output formatting for the Todo CLI."""
+    """Handles console output formatting for the Todo CLI with Rich library."""
 
-    # Column widths for list output
-    ID_WIDTH = 4
-    STATUS_WIDTH = 10
-    PRIORITY_WIDTH = 9
-    DUE_WIDTH = 12
-    TITLE_WIDTH = 40
+    def __init__(self):
+        """Initialize Rich console."""
+        self.console = Console(force_terminal=True)
 
-    @staticmethod
-    def format_due_date(task: Task) -> str:
-        """Format the due date with overdue indicator.
+    def get_priority_color(self, priority: TaskPriority) -> str:
+        """Get color for priority level.
+
+        Args:
+            priority: Task priority
+
+        Returns:
+            Color name for Rich
+        """
+        colors = {
+            TaskPriority.HIGH: "red",
+            TaskPriority.MEDIUM: "yellow",
+            TaskPriority.LOW: "green"
+        }
+        return colors.get(priority, "white")
+
+    def get_status_color(self, status: TaskStatus) -> str:
+        """Get color for status.
+
+        Args:
+            status: Task status
+
+        Returns:
+            Color name for Rich
+        """
+        colors = {
+            TaskStatus.PENDING: "cyan",
+            TaskStatus.COMPLETED: "green"
+        }
+        return colors.get(status, "white")
+
+    def format_due_date(self, task: Task) -> Tuple[str, str]:
+        """Format the due date with color.
 
         Args:
             task: The task to format due date for
 
         Returns:
-            Formatted due date string
+            Tuple of (formatted date string, color)
         """
         if not task.due_date:
-            return "-"
+            return "-", "dim"
 
         now = datetime.now()
         is_overdue = task.due_date < now and task.status == TaskStatus.PENDING
@@ -40,200 +78,217 @@ class ConsoleUI:
             date_str = task.due_date.strftime("%b %d, %Y")
 
         if is_overdue:
-            return f"OVERDUE"
+            return "⚠ OVERDUE", "red bold"
 
-        return date_str
+        # Upcoming soon (within 2 days)
+        days_until = (task.due_date - now).days
+        if 0 <= days_until <= 2:
+            return f"⏰ {date_str}", "yellow"
 
-    @staticmethod
-    def format_task_created(task: Task) -> str:
-        """Format output for a newly created task.
+        return date_str, "white"
+
+    def format_task_created(self, task: Task) -> None:
+        """Display a newly created task with Rich formatting.
 
         Args:
             task: The created task
-
-        Returns:
-            Formatted success message
         """
-        lines = [
-            f"Created task: {task.title} (ID: {task.id})",
-            f"Priority: {task.priority.value}"
-        ]
-        if task.due_date:
-            lines.append(f"Due: {task.due_date.strftime('%Y-%m-%d')}")
-        return "\n".join(lines)
+        text = Text()
+        text.append("✅ Created task: ", style="bold green")
+        text.append(task.title, style="bold")
+        text.append(f" (ID: {task.id})", style="dim")
 
-    @staticmethod
-    def format_task_list(tasks: List[Task]) -> str:
-        """Format a list of tasks with aligned columns.
+        self.console.print(text)
+        self.console.print(f"   Priority: ", style="dim", end="")
+        self.console.print(task.priority.value, style=self.get_priority_color(task.priority))
+
+        if task.due_date:
+            self.console.print(f"   Due: ", style="dim", end="")
+            due_str, due_color = self.format_due_date(task)
+            self.console.print(due_str.replace("⏰ ", "").replace("⚠ ", ""), style=due_color)
+
+    def format_task_list(self, tasks: List[Task]) -> None:
+        """Display a list of tasks in a Rich table.
 
         Args:
             tasks: List of tasks to display
-
-        Returns:
-            Formatted task table
         """
-        # Header
-        header = (
-            f"{'ID':<{ConsoleUI.ID_WIDTH}}  "
-            f"{'Status':<{ConsoleUI.STATUS_WIDTH}}  "
-            f"{'Priority':<{ConsoleUI.PRIORITY_WIDTH}}  "
-            f"{'Due':<{ConsoleUI.DUE_WIDTH}}  "
-            f"{'Title':<{ConsoleUI.TITLE_WIDTH}}"
-        )
-        separator = (
-            f"{'-' * ConsoleUI.ID_WIDTH}  "
-            f"{'-' * ConsoleUI.STATUS_WIDTH}  "
-            f"{'-' * ConsoleUI.PRIORITY_WIDTH}  "
-            f"{'-' * ConsoleUI.DUE_WIDTH}  "
-            f"{'-' * ConsoleUI.TITLE_WIDTH}"
+        # Create table
+        table = Table(
+            show_header=True,
+            header_style="bold cyan",
+            border_style="bright_black",
+            title="📋 Todo List",
+            title_style="bold magenta"
         )
 
-        lines = [header, separator]
+        # Add columns
+        table.add_column("ID", justify="right", style="cyan", width=4)
+        table.add_column("Status", width=10)
+        table.add_column("Priority", width=9)
+        table.add_column("Due", width=14)
+        table.add_column("Title", style="white", no_wrap=False)
 
-        # Task rows
+        # Add rows
         for task in tasks:
+            # Format status with icon
+            status_icons = {
+                TaskStatus.PENDING: "⏳",
+                TaskStatus.COMPLETED: "✓"
+            }
+            status_icon = status_icons.get(task.status, "")
+            status_text = f"{status_icon} {task.status.value}"
+
+            # Format priority with color
+            priority_text = Text(task.priority.value)
+            priority_text.stylize(self.get_priority_color(task.priority))
+
+            # Format due date
+            due_str, due_color = self.format_due_date(task)
+            due_text = Text(due_str)
+            due_text.stylize(due_color)
+
+            # Format title (truncate if too long)
             title = task.title
-            if len(title) > ConsoleUI.TITLE_WIDTH:
-                title = title[:ConsoleUI.TITLE_WIDTH - 3] + "..."
+            if len(title) > 60:
+                title = title[:57] + "..."
 
-            due_str = ConsoleUI.format_due_date(task)
-
-            line = (
-                f"{task.id:<{ConsoleUI.ID_WIDTH}}  "
-                f"{task.status.value:<{ConsoleUI.STATUS_WIDTH}}  "
-                f"{task.priority.value:<{ConsoleUI.PRIORITY_WIDTH}}  "
-                f"{due_str:<{ConsoleUI.DUE_WIDTH}}  "
-                f"{title:<{ConsoleUI.TITLE_WIDTH}}"
+            # Add row with color coding
+            status_color = self.get_status_color(task.status)
+            table.add_row(
+                str(task.id),
+                Text(status_text, style=status_color),
+                priority_text,
+                due_text,
+                title
             )
-            lines.append(line)
+
+        self.console.print(table)
 
         # Summary
-        pending = sum(1 for t in tasks if t.status.value == "pending")
+        pending = sum(1 for t in tasks if t.status == TaskStatus.PENDING)
         completed = len(tasks) - pending
         now = datetime.now()
         overdue = sum(1 for t in tasks if t.due_date and t.due_date < now and t.status == TaskStatus.PENDING)
-        lines.append("")
-        summary = f"Total: {len(tasks)} tasks ({pending} pending, {completed} completed)"
+
+        summary = Text()
+        summary.append("Total: ", style="bold")
+        summary.append(f"{len(tasks)} tasks ", style="cyan")
+        summary.append(f"({pending} pending, ", style="yellow")
+        summary.append(f"{completed} completed", style="green")
+
         if overdue > 0:
-            summary += f", {overdue} overdue"
-        lines.append(summary)
+            summary.append(f", ", style="white")
+            summary.append(f"{overdue} overdue", style="bold red")
 
-        return "\n".join(lines)
+        summary.append(")", style="white")
 
-    @staticmethod
-    def format_empty_list() -> str:
-        """Format output when no tasks exist.
+        self.console.print()
+        self.console.print(summary)
 
-        Returns:
-            Friendly empty list message with tip
-        """
-        return (
-            "No tasks found.\n\n"
-            "Tip: Add a task with 'todo add \"Your task title\"'"
+    def format_empty_list(self) -> None:
+        """Display message when no tasks exist."""
+        panel = Panel(
+            "[dim]No tasks found.[/dim]\n\n"
+            "[cyan]💡 Tip:[/cyan] Add a task with [yellow]'todo add \"Your task title\"'[/yellow]",
+            title="📋 Todo List",
+            border_style="blue"
         )
+        self.console.print(panel)
 
-    @staticmethod
-    def format_task_completed(task: Task) -> str:
-        """Format output for a completed task.
+    def format_task_completed(self, task: Task) -> None:
+        """Display a completed task message.
 
         Args:
             task: The completed task
-
-        Returns:
-            Formatted success message
         """
-        return f"Completed task: {task.title} (ID: {task.id})"
+        text = Text()
+        text.append("✅ Completed task: ", style="bold green")
+        text.append(task.title, style="bold")
+        text.append(f" (ID: {task.id})", style="dim")
+        self.console.print(text)
 
-    @staticmethod
-    def format_task_already_completed(task: Task) -> str:
-        """Format output when task was already completed.
+    def format_task_already_completed(self, task: Task) -> None:
+        """Display message when task was already completed.
 
         Args:
             task: The already-completed task
-
-        Returns:
-            Formatted informational message
         """
-        return f"Task already completed: {task.title} (ID: {task.id})"
+        text = Text()
+        text.append("ℹ️  Task already completed: ", style="blue")
+        text.append(task.title, style="bold")
+        text.append(f" (ID: {task.id})", style="dim")
+        self.console.print(text)
 
-    @staticmethod
-    def format_task_updated(task: Task, changes: Dict[str, Tuple[str, str]]) -> str:
-        """Format output for an updated task.
+    def format_task_updated(self, task: Task, changes: Dict[str, Tuple[str, str]]) -> None:
+        """Display an updated task with changes.
 
         Args:
             task: The updated task
             changes: Dict of field name to (old_value, new_value)
-
-        Returns:
-            Formatted success message showing changes
         """
-        lines = [f"Updated task (ID: {task.id}):"]
-        for field, (old_val, new_val) in changes.items():
-            lines.append(f"  {field.capitalize()}: {old_val} -> {new_val}")
-        return "\n".join(lines)
+        text = Text()
+        text.append("🔄 Updated task ", style="bold cyan")
+        text.append(f"(ID: {task.id}):", style="dim")
+        self.console.print(text)
 
-    @staticmethod
-    def format_task_deleted(task: Task) -> str:
-        """Format output for a deleted task.
+        for field, (old_val, new_val) in changes.items():
+            change_text = Text()
+            change_text.append("  ", style="")
+            change_text.append(f"{field.replace('_', ' ').capitalize()}: ", style="dim")
+            change_text.append(old_val, style="red strikethrough")
+            change_text.append(" → ", style="dim")
+            change_text.append(new_val, style="green bold")
+            self.console.print(change_text)
+
+    def format_task_deleted(self, task: Task) -> None:
+        """Display a deleted task message.
 
         Args:
             task: The deleted task
-
-        Returns:
-            Formatted success message
         """
-        return f"Deleted task: {task.title} (ID: {task.id})"
+        text = Text()
+        text.append("🗑️  Deleted task: ", style="bold red")
+        text.append(task.title, style="bold")
+        text.append(f" (ID: {task.id})", style="dim")
+        self.console.print(text)
 
-    @staticmethod
-    def format_error(message: str) -> str:
-        """Format an error message.
+    def format_error(self, message: str) -> None:
+        """Display an error message.
 
         Args:
             message: The error message
-
-        Returns:
-            Formatted error string
         """
-        return f"Error: {message}"
+        self.console.print(f"❌ Error: {message}", style="bold red")
 
-    @staticmethod
-    def format_task_not_found(task_id: int) -> str:
-        """Format a task not found error.
+    def format_task_not_found(self, task_id: int) -> None:
+        """Display a task not found error.
 
         Args:
             task_id: The ID that was not found
-
-        Returns:
-            Formatted error message
         """
-        return f"Error: Task not found (ID: {task_id})"
+        self.console.print(f"❌ Error: Task not found (ID: {task_id})", style="bold red")
 
-    @staticmethod
-    def format_invalid_id(value: str) -> str:
-        """Format an invalid ID error.
+    def format_invalid_id(self, value: str) -> None:
+        """Display an invalid ID error.
 
         Args:
             value: The invalid value provided
-
-        Returns:
-            Formatted error message
         """
-        return f"Error: Invalid ID '{value}'. Must be a number."
+        self.console.print(f"❌ Error: Invalid ID '{value}'. Must be a number.", style="bold red")
 
-    @staticmethod
-    def print_success(message: str) -> None:
+    def print_success(self, message: str) -> None:
         """Print a success message to stdout.
 
         Args:
             message: The message to print
         """
-        print(message)
+        self.console.print(message, style="green")
 
-    @staticmethod
-    def print_error(message: str) -> None:
+    def print_error(self, message: str) -> None:
         """Print an error message to stderr.
 
         Args:
             message: The error message to print
         """
-        print(message, file=sys.stderr)
+        self.console.print(message, style="bold red", file=sys.stderr)

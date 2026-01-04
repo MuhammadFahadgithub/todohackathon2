@@ -43,10 +43,10 @@ def cmd_add(args: argparse.Namespace) -> int:
     task, error = todo_service.add_task(args.title, args.priority, args.due)
 
     if error:
-        ui.print_error(ui.format_error(error))
+        ui.format_error(error)
         return 1
 
-    ui.print_success(ui.format_task_created(task))
+    ui.format_task_created(task)
     return 0
 
 
@@ -63,9 +63,9 @@ def cmd_list(args: argparse.Namespace) -> int:
     tasks = todo_service.get_tasks_by_status(status_filter)
 
     if not tasks:
-        ui.print_success(ui.format_empty_list())
+        ui.format_empty_list()
     else:
-        ui.print_success(ui.format_task_list(tasks))
+        ui.format_task_list(tasks)
 
     return 0
 
@@ -81,19 +81,19 @@ def cmd_complete(args: argparse.Namespace) -> int:
     """
     task_id = parse_task_id(args.id)
     if task_id is None:
-        ui.print_error(ui.format_invalid_id(args.id))
+        ui.format_invalid_id(args.id)
         return 1
 
     task, was_already_completed, error = todo_service.complete_task(task_id)
 
     if error:
-        ui.print_error(ui.format_error(error))
+        ui.format_error(error)
         return 1
 
     if was_already_completed:
-        ui.print_success(ui.format_task_already_completed(task))
+        ui.format_task_already_completed(task)
     else:
-        ui.print_success(ui.format_task_completed(task))
+        ui.format_task_completed(task)
 
     return 0
 
@@ -109,7 +109,7 @@ def cmd_update(args: argparse.Namespace) -> int:
     """
     task_id = parse_task_id(args.id)
     if task_id is None:
-        ui.print_error(ui.format_invalid_id(args.id))
+        ui.format_invalid_id(args.id)
         return 1
 
     task, changes, error = todo_service.update_task(
@@ -120,13 +120,13 @@ def cmd_update(args: argparse.Namespace) -> int:
     )
 
     if error:
-        ui.print_error(ui.format_error(error))
+        ui.format_error(error)
         return 1
 
     if changes:
-        ui.print_success(ui.format_task_updated(task, changes))
+        ui.format_task_updated(task, changes)
     else:
-        ui.print_success(f"No changes made to task (ID: {task_id})")
+        ui.console.print(f"ℹ️  No changes made to task (ID: {task_id})", style="blue")
 
     return 0
 
@@ -142,16 +142,16 @@ def cmd_delete(args: argparse.Namespace) -> int:
     """
     task_id = parse_task_id(args.id)
     if task_id is None:
-        ui.print_error(ui.format_invalid_id(args.id))
+        ui.format_invalid_id(args.id)
         return 1
 
     task, error = todo_service.delete_task(task_id)
 
     if error:
-        ui.print_error(ui.format_error(error))
+        ui.format_error(error)
         return 1
 
-    ui.print_success(ui.format_task_deleted(task))
+    ui.format_task_deleted(task)
     return 0
 
 

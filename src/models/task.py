@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, List
 
 
 class TaskStatus(Enum):
@@ -30,6 +30,8 @@ class Task:
         priority: Priority level (low/medium/high)
         created_at: Timestamp when task was created
         due_date: Optional due date for the task
+        category: Optional category (e.g., "work", "personal", "shopping")
+        tags: Optional list of tags (e.g., ["urgent", "bug-fix"])
     """
     id: int
     title: str
@@ -37,6 +39,8 @@ class Task:
     priority: TaskPriority = TaskPriority.MEDIUM
     created_at: datetime = field(default_factory=datetime.now)
     due_date: Optional[datetime] = None
+    category: Optional[str] = None
+    tags: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate task after initialization."""

@@ -107,6 +107,14 @@ class ConsoleUI:
             due_str, due_color = self.format_due_date(task)
             self.console.print(due_str.replace("⏰ ", "").replace("⚠ ", ""), style=due_color)
 
+        if task.category:
+            self.console.print(f"   Category: ", style="dim", end="")
+            self.console.print(task.category, style="cyan")
+
+        if task.tags:
+            self.console.print(f"   Tags: ", style="dim", end="")
+            self.console.print(", ".join(task.tags), style="magenta")
+
     def format_task_list(self, tasks: List[Task]) -> None:
         """Display a list of tasks in a Rich table.
 
@@ -127,6 +135,8 @@ class ConsoleUI:
         table.add_column("Status", width=10)
         table.add_column("Priority", width=9)
         table.add_column("Due", width=14)
+        table.add_column("Category", width=12)
+        table.add_column("Tags", width=20)
         table.add_column("Title", style="white", no_wrap=False)
 
         # Add rows
@@ -148,10 +158,27 @@ class ConsoleUI:
             due_text = Text(due_str)
             due_text.stylize(due_color)
 
+            # Format category
+            category_str = task.category if task.category else "-"
+            if len(category_str) > 12:
+                category_str = category_str[:9] + "..."
+
+            # Format tags (truncate to 5 tags max)
+            if task.tags:
+                display_tags = task.tags[:5]
+                tags_str = ", ".join(display_tags)
+                if len(task.tags) > 5:
+                    tags_str += ", ..."
+                # Truncate if still too long
+                if len(tags_str) > 20:
+                    tags_str = tags_str[:17] + "..."
+            else:
+                tags_str = "-"
+
             # Format title (truncate if too long)
             title = task.title
-            if len(title) > 60:
-                title = title[:57] + "..."
+            if len(title) > 40:
+                title = title[:37] + "..."
 
             # Add row with color coding
             status_color = self.get_status_color(task.status)
@@ -160,6 +187,8 @@ class ConsoleUI:
                 Text(status_text, style=status_color),
                 priority_text,
                 due_text,
+                category_str,
+                tags_str,
                 title
             )
 
@@ -251,6 +280,66 @@ class ConsoleUI:
         text.append("🗑️  Deleted task: ", style="bold red")
         text.append(task.title, style="bold")
         text.append(f" (ID: {task.id})", style="dim")
+        self.console.print(text)
+
+    def format_categories_list(self, categories: List[str]) -> None:
+        """Display a list of all categories in use.
+
+        Args:
+            categories: List of unique category names
+        """
+        if not categories:
+            panel = Panel(
+                "[dim]No categories in use yet.[/dim]\n\n"
+                "[cyan]💡 Tip:[/cyan] Add a category with [yellow]'todo add \"Task\" --category work'[/yellow]",
+                title="📂 Categories",
+                border_style="cyan"
+            )
+            self.console.print(panel)
+            return
+
+        text = Text()
+        text.append(f"📂 Categories ({len(categories)}):\n\n", style="bold magenta")
+
+        for category in categories:
+            text.append("  • ", style="dim")
+            text.append(category, style="cyan")
+            text.append("\n")
+
+        text.append("\n")
+        text.append("Use: ", style="dim")
+        text.append("todo list --category <name>", style="yellow")
+
+        self.console.print(text)
+
+    def format_tags_list(self, tags: List[str]) -> None:
+        """Display a list of all tags in use.
+
+        Args:
+            tags: List of unique tag names
+        """
+        if not tags:
+            panel = Panel(
+                "[dim]No tags in use yet.[/dim]\n\n"
+                "[cyan]💡 Tip:[/cyan] Add tags with [yellow]'todo add \"Task\" --tags urgent important'[/yellow]",
+                title="🏷️  Tags",
+                border_style="magenta"
+            )
+            self.console.print(panel)
+            return
+
+        text = Text()
+        text.append(f"🏷️  Tags ({len(tags)}):\n\n", style="bold magenta")
+
+        for tag in tags:
+            text.append("  • ", style="dim")
+            text.append(tag, style="magenta")
+            text.append("\n")
+
+        text.append("\n")
+        text.append("Use: ", style="dim")
+        text.append("todo list --tag <name>", style="yellow")
+
         self.console.print(text)
 
     def format_error(self, message: str) -> None:

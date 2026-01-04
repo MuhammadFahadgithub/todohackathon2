@@ -1,5 +1,5 @@
-"""CLI entry point for Todo CLI Core."""
-
+"""CLI entry point for Todo CLI Core."""  
+# python -m src.main
 import argparse
 import sys
 from typing import Optional
@@ -40,7 +40,16 @@ def cmd_add(args: argparse.Namespace) -> int:
     Returns:
         Exit code (0 for success, 1 for error)
     """
-    task, error = todo_service.add_task(args.title, args.priority, args.due)
+    category = getattr(args, 'category', None)
+    tags = getattr(args, 'tags', None)
+
+    task, error = todo_service.add_task(
+        args.title,
+        args.priority,
+        args.due,
+        category=category,
+        tags=tags
+    )
 
     if error:
         ui.format_error(error)
@@ -60,7 +69,25 @@ def cmd_list(args: argparse.Namespace) -> int:
         Exit code (0 for success)
     """
     status_filter = getattr(args, 'status', 'all') or 'all'
+    category_filter = getattr(args, 'category', None)
+    tag_filter = getattr(args, 'tag', None)
+
+    # Start with status filter
     tasks = todo_service.get_tasks_by_status(status_filter)
+
+    # Apply category filter if provided
+    if category_filter:
+        category_tasks = todo_service.get_tasks_by_category(category_filter)
+        # Intersect with current results
+        task_ids = {t.id for t in tasks}
+        tasks = [t for t in category_tasks if t.id in task_ids]
+
+    # Apply tag filter if provided
+    if tag_filter:
+        tag_tasks = todo_service.get_tasks_by_tag(tag_filter)
+        # Intersect with current results
+        task_ids = {t.id for t in tasks}
+        tasks = [t for t in tag_tasks if t.id in task_ids]
 
     if not tasks:
         ui.format_empty_list()
@@ -112,11 +139,16 @@ def cmd_update(args: argparse.Namespace) -> int:
         ui.format_invalid_id(args.id)
         return 1
 
+    category = getattr(args, 'category', None)
+    tags = getattr(args, 'tags', None)
+
     task, changes, error = todo_service.update_task(
         task_id,
-        title=args.title,
-        priority=args.priority,
-        due_date=args.due
+        title=getattr(args, 'title', None),
+        priority=getattr(args, 'priority', None),
+        due_date=getattr(args, 'due', None),
+        category=category,
+        tags=tags
     )
 
     if error:
@@ -155,6 +187,34 @@ def cmd_delete(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_list_categories(args: argparse.Namespace) -> int:
+    """Handle the 'list-categories' subcommand.
+
+    Args:
+        args: Parsed command line arguments
+
+    Returns:
+        Exit code (0 for success)
+    """
+    categories = todo_service.get_all_categories()
+    ui.format_categories_list(categories)
+    return 0
+
+
+def cmd_list_tags(args: argparse.Namespace) -> int:
+    """Handle the 'list-tags' subcommand.
+
+    Args:
+        args: Parsed command line arguments
+
+    Returns:
+        Exit code (0 for success)
+    """
+    tags = todo_service.get_all_tags()
+    ui.format_tags_list(tags)
+    return 0
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser with all subcommands.
 
@@ -186,6 +246,15 @@ def create_parser() -> argparse.ArgumentParser:
         "--due", "-d",
         help="Due date (e.g., 'tomorrow', 'next friday', '2026-01-15')"
     )
+    add_parser.add_argument(
+        "--category", "-c",
+        help="Task category (e.g., 'work', 'personal', 'shopping')"
+    )
+    add_parser.add_argument(
+        "--tags", "-t",
+        nargs="*",
+        help="Task tags (space-separated, e.g., 'urgent bug-fix')"
+    )
     add_parser.set_defaults(func=cmd_add)
 
     # List command
@@ -195,6 +264,14 @@ def create_parser() -> argparse.ArgumentParser:
         choices=["all", "pending", "completed"],
         default="all",
         help="Filter by status (default: all)"
+    )
+    list_parser.add_argument(
+        "--category", "-c",
+        help="Filter by category (case-insensitive)"
+    )
+    list_parser.add_argument(
+        "--tag", "-t",
+        help="Filter by tag (case-insensitive)"
     )
     list_parser.set_defaults(func=cmd_list)
 
@@ -207,7 +284,7 @@ def create_parser() -> argparse.ArgumentParser:
     update_parser = subparsers.add_parser("update", help="Update a task")
     update_parser.add_argument("id", help="Task ID to update")
     update_parser.add_argument(
-        "--title", "-t",
+        "--title",
         help="New task title"
     )
     update_parser.add_argument(
@@ -219,12 +296,29 @@ def create_parser() -> argparse.ArgumentParser:
         "--due", "-d",
         help="New due date (e.g., 'tomorrow', 'Jan 15', '2026-01-15', or 'none' to clear)"
     )
+    update_parser.add_argument(
+        "--category", "-c",
+        help="New category (use 'none' to clear)"
+    )
+    update_parser.add_argument(
+        "--tags", "-t",
+        nargs="*",
+        help="Replace tags (space-separated, use 'none' to clear)"
+    )
     update_parser.set_defaults(func=cmd_update)
 
     # Delete command
     delete_parser = subparsers.add_parser("delete", help="Delete a task")
     delete_parser.add_argument("id", help="Task ID to delete")
     delete_parser.set_defaults(func=cmd_delete)
+
+    # List categories command
+    list_categories_parser = subparsers.add_parser("list-categories", help="List all categories in use")
+    list_categories_parser.set_defaults(func=cmd_list_categories)
+
+    # List tags command
+    list_tags_parser = subparsers.add_parser("list-tags", help="List all tags in use")
+    list_tags_parser.set_defaults(func=cmd_list_tags)
 
     return parser
 

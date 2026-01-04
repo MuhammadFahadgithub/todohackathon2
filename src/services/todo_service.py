@@ -79,11 +79,60 @@ class TodoService:
         if self._persistence:
             self._persistence.save(self._tasks, self._next_id)
 
+    def _validate_category(self, category: Optional[str]) -> Optional[str]:
+        """Validate and normalize category.
+
+        Args:
+            category: Category string to validate
+
+        Returns:
+            Normalized category or None
+        """
+        if category is None:
+            return None
+
+        category = category.strip()
+        if category == "":
+            return None
+
+        return category
+
+    def _validate_tags(self, tags: Optional[List[str]]) -> List[str]:
+        """Validate and normalize tags.
+
+        Args:
+            tags: List of tag strings to validate
+
+        Returns:
+            Normalized list of unique tags
+        """
+        if tags is None:
+            return []
+
+        # Strip whitespace from each tag
+        tags = [tag.strip() for tag in tags]
+
+        # Remove empty strings
+        tags = [tag for tag in tags if tag]
+
+        # Remove duplicates (case-insensitive)
+        seen = set()
+        unique_tags = []
+        for tag in tags:
+            tag_lower = tag.lower()
+            if tag_lower not in seen:
+                seen.add(tag_lower)
+                unique_tags.append(tag)
+
+        return unique_tags
+
     def add_task(
         self,
         title: str,
         priority: Optional[str] = None,
-        due_date: Optional[str] = None
+        due_date: Optional[str] = None,
+        category: Optional[str] = None,
+        tags: Optional[List[str]] = None
     ) -> Tuple[Task, Optional[str]]:
         """Add a new task to the list.
 
@@ -91,6 +140,8 @@ class TodoService:
             title: Task title (required, max 500 chars)
             priority: Priority level (low/medium/high), defaults to medium
             due_date: Due date string (optional, natural language or ISO format)
+            category: Optional category (e.g., "work", "personal")
+            tags: Optional list of tags (e.g., ["urgent", "bug-fix"])
 
         Returns:
             Tuple of (created task, error message or None)
@@ -119,6 +170,10 @@ class TodoService:
             if not parsed_due_date:
                 return None, f"Invalid due date '{due_date}'. Try: 'today', 'tomorrow', 'Jan 15', or '2026-01-15'"
 
+        # Validate category and tags
+        validated_category = self._validate_category(category)
+        validated_tags = self._validate_tags(tags)
+
         # Create task
         task = Task(
             id=self._next_id,
@@ -126,7 +181,9 @@ class TodoService:
             status=TaskStatus.PENDING,
             priority=task_priority,
             created_at=datetime.now(),
-            due_date=parsed_due_date
+            due_date=parsed_due_date,
+            category=validated_category,
+            tags=validated_tags
         )
 
         self._tasks[self._next_id] = task
@@ -199,15 +256,19 @@ class TodoService:
         task_id: int,
         title: Optional[str] = None,
         priority: Optional[str] = None,
-        due_date: Optional[str] = None
+        due_date: Optional[str] = None,
+        category: Optional[str] = None,
+        tags: Optional[List[str]] = None
     ) -> Tuple[Optional[Task], Dict[str, Tuple[str, str]], Optional[str]]:
-        """Update a task's title, priority, and/or due date.
+        """Update a task's title, priority, due date, category, and/or tags.
 
         Args:
             task_id: The task ID to update
             title: New title (optional)
             priority: New priority (optional)
             due_date: New due date (optional, natural language or ISO format)
+            category: New category (optional, use "none" to clear)
+            tags: New tags (optional, use ["none"] to clear)
 
         Returns:
             Tuple of (task, changes dict, error message or None)
@@ -217,8 +278,8 @@ class TodoService:
         if not task:
             return None, {}, f"Task not found (ID: {task_id})"
 
-        if title is None and priority is None and due_date is None:
-            return None, {}, "No changes specified. Use --title, --priority, or --due."
+        if title is None and priority is None and due_date is None and category is None and tags is None:
+            return None, {}, "No changes specified. Use --title, --priority, --due, --category, or --tags."
 
         changes = {}
 
@@ -261,6 +322,30 @@ class TodoService:
             if old_due != new_due:
                 changes["due_date"] = (old_due, new_due)
 
+        # Update category if provided
+        if category is not None:
+            old_category = task.category if task.category else "none"
+            if category.lower() == "none":
+                task.category = None
+                new_category = "none"
+            else:
+                task.category = self._validate_category(category)
+                new_category = task.category if task.category else "none"
+            if old_category != new_category:
+                changes["category"] = (old_category, new_category)
+
+        # Update tags if provided
+        if tags is not None:
+            old_tags = ", ".join(task.tags) if task.tags else "none"
+            if len(tags) == 1 and tags[0].lower() == "none":
+                task.tags = []
+                new_tags = "none"
+            else:
+                task.tags = self._validate_tags(tags)
+                new_tags = ", ".join(task.tags) if task.tags else "none"
+            if old_tags != new_tags:
+                changes["tags"] = (old_tags, new_tags)
+
         if changes:
             self._persist()
 
@@ -282,3 +367,54 @@ class TodoService:
         del self._tasks[task_id]
         self._persist()
         return task, None
+
+    def get_tasks_by_category(self, category: str) -> List[Task]:
+        """Get tasks filtered by category.
+
+        Args:
+            category: Category to filter by
+
+        Returns:
+            List of matching tasks sorted by ID
+        """
+        return sorted(
+            [t for t in self._tasks.values() if t.category and t.category.lower() == category.lower()],
+            key=lambda t: t.id
+        )
+
+    def get_tasks_by_tag(self, tag: str) -> List[Task]:
+        """Get tasks filtered by tag.
+
+        Args:
+            tag: Tag to filter by
+
+        Returns:
+            List of matching tasks sorted by ID
+        """
+        return sorted(
+            [t for t in self._tasks.values() if tag.lower() in [t_tag.lower() for t_tag in t.tags]],
+            key=lambda t: t.id
+        )
+
+    def get_all_categories(self) -> List[str]:
+        """Get all unique categories from tasks.
+
+        Returns:
+            Sorted list of unique category names
+        """
+        categories = set()
+        for task in self._tasks.values():
+            if task.category:
+                categories.add(task.category)
+        return sorted(categories)
+
+    def get_all_tags(self) -> List[str]:
+        """Get all unique tags from tasks.
+
+        Returns:
+            Sorted list of unique tag names
+        """
+        tags = set()
+        for task in self._tasks.values():
+            tags.update(task.tags)
+        return sorted(tags)

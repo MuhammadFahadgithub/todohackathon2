@@ -55,7 +55,9 @@ class JsonPersistence:
                     status=TaskStatus(task_data["status"]),
                     priority=TaskPriority(task_data["priority"]),
                     created_at=datetime.fromisoformat(task_data["created_at"]),
-                    due_date=due_date
+                    due_date=due_date,
+                    category=task_data.get("category"),
+                    tags=task_data.get("tags", [])
                 )
                 tasks[task.id] = task
 
@@ -89,7 +91,9 @@ class JsonPersistence:
                     "status": task.status.value,
                     "priority": task.priority.value,
                     "created_at": task.created_at.isoformat(),
-                    "due_date": task.due_date.isoformat() if task.due_date else None
+                    "due_date": task.due_date.isoformat() if task.due_date else None,
+                    "category": task.category,
+                    "tags": task.tags
                 }
                 tasks_data.append(task_dict)
 
